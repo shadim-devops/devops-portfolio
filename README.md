@@ -1,172 +1,27 @@
+Cloud-Native DevOps Starter (Portfolio Project)
 
-# Cloud-Native DevOps Starter (Portfolio Project)
+This is a small educational DevOps portfolio project that demonstrates basic principles of containerization, CI/CD, Kubernetes, infrastructure as code, and monitoring. The project includes a simple Python Flask app with Docker multi-stage builds, unit tests using Pytest, and automated CI/CD pipelines via GitHub Actions. It uses Kubernetes with Kustomize for separate development and production environments, Nginx Ingress configuration, and Makefile helpers. Terraform stubs are prepared for AWS (EKS and ECR), and Trivy is used for container security scanning. You can practice locally for free using kind or minikube and push images to GitHub Container Registry.
 
-A small but complete **DevOps portfolio project** you can show to employers. It demonstrates containerization, CI/CD, Kubernetes, GitOps-ready layout, basic monitoring hooks, and infrastructure-as-code stubs.
+The workflow is simple: a developer pushes changes to GitHub, which triggers GitHub Actions for CI (linting, testing, building, and scanning) and pushes the image to GHCR. Deployment to a Kubernetes cluster can be done manually or automated via Argo CD. The cluster runs the app as a Deployment with a Service and Ingress.
 
-## 🔧 Tech Stack
-- **Python Flask** sample app (minimal business logic)
-- **Docker** (multi-stage build)
-- **Pytest** (unit tests)
-- **GitHub Actions** for CI (lint → test → build → push to GHCR) and CD (kubectl apply or Argo CD-ready)
-- **Kubernetes** manifests with **Kustomize** overlays for `dev` and `prod`
-- **Ingress** scaffold (Nginx Ingress assumed)
-- **Makefile** helpers
-- **Terraform stub** ready for AWS (backend + EKS/ECR placeholders)
-- **Security**: Trivy image scan stage in CI (optional / enabled by default)
+Repository structure includes:
 
-> Want to keep costs at **zero** while practicing? Use **kind** or **minikube** locally and push images to **GitHub Container Registry (GHCR)**.
+* app/ for the main application code (app.py, requirements, Dockerfile)
+* tests/ for unit tests
+* k8s/ for Kubernetes manifests (base and overlays for dev/prod)
+* .github/workflows/ for CI/CD pipelines
+* infra/terraform/ for infrastructure templates
+* docker-compose.yaml for local setup
+* Makefile for helper commands
 
----
+Quick start locally: install Docker and Python 3.11+, run tests with `pytest`, then build and run the container using `docker build` and `docker run`. You can also start the app with `docker compose up --build` and check it at [http://localhost:8000/health].
 
-## 🗺️ Architecture (high-level)
+For Kubernetes, base manifests are in k8s/base, and overlays for environments are in k8s/overlays/dev and k8s/overlays/prod. Deploy using `kubectl apply -k k8s/overlays/dev` or `kubectl apply -k k8s/overlays/prod`. An Ingress controller (like ingress-nginx) is required.
 
-```
-Developer -> GitHub (repo)
-   |           |
-   |       GitHub Actions (CI)
-   |           |-- lint & test
-   |           |-- build & push (GHCR)
-   |           '-- trivy scan
-   |
-k8s cluster <- CD (manual, env-protected) ---- apply k8s/overlays/{dev,prod}
-   |
-   +-- Deployment + Service + Ingress
-```
+CI/CD details:
+The CI workflow (ci.yml) runs linting with flake8, testing with pytest, builds and scans the Docker image with Trivy, and pushes it to GHCR. The CD workflow (cd.yml) is triggered manually with environment protection and applies manifests using kubectl and a kubeconfig provided via GitHub Secrets. It can be replaced with Argo CD for a GitOps setup. Required secrets: GHCR_USERNAME, GHCR_TOKEN, KUBE_CONFIG, and optionally TRIVY_DB_REPOSITORY.
 
----
+Monitoring and logging are handled through kube-prometheus-stack (Prometheus and Grafana) and Loki + Promtail. The app includes a simple /metrics endpoint for future monitoring extensions. Security checks include Trivy scans in CI and example NetworkPolicy lines in the base manifests.
 
-## 📂 Repository Structure
+When presenting the project to employers, you can show a successful CI run with green checks, the image published to GHCR, Kubernetes rollout output (`kubectl get pods`), a screenshot of the app running behind Ingress, and optionally a Grafana dashboard panel. Possible future improvements include replacing kubectl CD with Argo CD, using Helm charts, adding Terraform modules for AWS resources, implementing Canary or Blue/Green deployments, and managing secrets with the External Secrets Operator. Commit often, use GitHub issues and a small project board to simulate real teamwork.
 
-```
-.
-├── app/
-│   ├── app.py
-│   ├── requirements.txt
-│   └── Dockerfile
-├── tests/
-│   └── test_app.py
-├── k8s/
-│   ├── base/
-│   │   ├── deployment.yaml
-│   │   ├── service.yaml
-│   │   └── ingress.yaml
-│   └── overlays/
-│       ├── dev/
-│       │   └── kustomization.yaml
-│       └── prod/
-│           └── kustomization.yaml
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── cd.yml
-├── infra/
-│   └── terraform/
-│       └── README.md
-├── docker-compose.yaml
-├── Makefile
-└── README.md
-```
-
----
-
-## 🚀 Quick Start (Local)
-
-1) **Prereqs**
-- Docker / Docker Desktop
-- Python 3.11+ (optional, for local run without Docker)
-
-2) **Run tests locally**
-
-```bash
-pip install -r app/requirements.txt
-pip install -r tests/requirements.txt
-pytest -q
-```
-
-3) **Build & run with Docker**
-
-```bash
-docker build -t ghcr.io/USERNAME/devops-portfolio:local ./app
-docker run -p 8000:8000 ghcr.io/USERNAME/devops-portfolio:local
-# open http://localhost:8000/health
-```
-
-4) **Compose (app + future addons)**
-
-```bash
-docker compose up --build
-```
-
----
-
-## ☸️ Kubernetes (with Kustomize)
-
-- **Base** holds common manifests.
-- **Overlays** hold env-specific patches (image tag, replicas, annotations).
-
-### Apply to dev
-```bash
-kubectl apply -k k8s/overlays/dev
-```
-
-### Apply to prod
-```bash
-kubectl apply -k k8s/overlays/prod
-```
-
-> Assumes you have an Ingress controller (e.g., **ingress-nginx**) and a DNS entry pointing to it for prod.
-
----
-
-## 🔁 CI/CD
-
-- **CI (`.github/workflows/ci.yml`)**
-  - Lint (flake8)
-  - Test (pytest + coverage)
-  - Build container
-  - **Trivy** scan
-  - Push to **GHCR** (tags: `sha`, `latest` for default branch)
-
-- **CD (`.github/workflows/cd.yml`)**
-  - Manual dispatch + env protection
-  - Uses `kubectl` to apply Kustomize overlay (you provide kubeconfig via secrets)
-  - Optional: Swap to **Argo CD** (GitOps) later; keep manifests in a separate **ops** repo.
-
-### Required GitHub secrets
-- `GHCR_USERNAME` – your GitHub username
-- `GHCR_TOKEN` – a PAT with `write:packages`, `read:packages`
-- `KUBE_CONFIG` – base64 of a kubeconfig for your cluster (for CD)
-- *(optional)* `TRIVY_DB_REPOSITORY` to speed up scans
-
----
-
-## 📊 Monitoring & Logging (hooks)
-- Add **kube-prometheus-stack** via Helm to your cluster (Prometheus + Grafana).
-- Add **Loki + Promtail** for logs.
-- The app exposes a simple `/metrics` placeholder to extend later.
-
----
-
-## 🛡️ Security
-- **Trivy** image scan in CI.
-- Example **NetworkPolicy** lines included as comments in base if your CNI supports it.
-
----
-
-## 🧪 What to Demo to Employers
-- CI run (green checks & artifacts) + **badges** in README
-- Container image on GHCR
-- `kubectl get pods` showing rollout after CD job
-- Screenshot of app working behind Ingress + `/health` ok
-- (Bonus) Grafana dashboard panel screenshot
-
----
-
-## ✅ Next Steps / Enhancements
-- Replace `kubectl` CD with **Argo CD**
-- Add **Helm chart** instead of raw manifests
-- Terraform modules for **EKS**/**ECR**/**Route53**
-- Blue/Green or Canary via **Argo Rollouts**
-- Secrets via **External Secrets Operator**
-
-> Tip: Commit little and often. Use issues + a project board to simulate real teamwork.
